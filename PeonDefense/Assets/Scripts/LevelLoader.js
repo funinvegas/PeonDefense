@@ -5,6 +5,7 @@ import SimpleJSON;
 //var mapFile:String = "";
 var assetPath:String = "";
 var mapAsset:TextAsset = null;
+var test:String[];
 
 var spriteTemplate:Transform = null;
 var physicsTemplate:Transform = null;
@@ -15,15 +16,18 @@ static var MaxRightPixel:Number = 1;
 static var MaxTopPixel:Number = 0;
 static var MaxBottomPixel:Number = 1;
 
+static var PixelsPerUnit:Number = 1;
+static var TileDrawOffset:Number = 16 / PixelsPerUnit;
+
 function Start () {
 	if (mapAsset) {
 		//var fileName = Application.dataPath + mapFile;
 		//Debug.Log("Reading Map File: " + fileName);
-//		var fileText = ReadFile(fileName);
+		//var fileText = ReadFile(fileName);
 		var fileText = mapAsset.text;
 		var fileData = JSON.Parse(fileText);
 		Debug.Log(fileData);
-//		var pathToMap = mapFile.Substring(0, Mathf.Max(mapFile.LastIndexOf('\\'), mapFile.LastIndexOf('/')) + 1);
+		//var pathToMap = mapFile.Substring(0, Mathf.Max(mapFile.LastIndexOf('\\'), mapFile.LastIndexOf('/')) + 1);
 		LoadTileSets(fileData['tilesets'].AsArray, assetPath);
 		LoadTileLayers(fileData['layers'].AsArray);
 	} else {
@@ -31,10 +35,10 @@ function Start () {
 	}
 	DrawTileLayers();
 	
-	MaxLeftPixel = transform.position.x - 0.16;
-	MaxRightPixel = transform.position.x + fileData['width'].AsInt * fileData['tilewidth'].AsInt / 100 - 0.16;
-	MaxTopPixel = transform.position.y + 0.16;
-  	MaxBottomPixel = transform.position.y - ((fileData['height'].AsInt * fileData['tileheight'].AsInt / 100) - 0.16);
+	MaxLeftPixel = transform.position.x - TileDrawOffset;
+	MaxRightPixel = transform.position.x + fileData['width'].AsInt * fileData['tilewidth'].AsInt / PixelsPerUnit - TileDrawOffset;
+	MaxTopPixel = transform.position.y + TileDrawOffset;
+  	MaxBottomPixel = transform.position.y - ((fileData['height'].AsInt * fileData['tileheight'].AsInt / PixelsPerUnit) - TileDrawOffset);
 
 	LoadPhysics();
 	
@@ -137,6 +141,10 @@ function Nearest100th(num:Number) {
 	return Mathf.Round(num * 100) / 100;
 }
 function DrawTileLayer(layer:TileLayer, layerIndex:Number) {
+	var sub:Number = layer.layerName.IndexOf("Paths");
+	if (sub >= 0) {
+		return;
+	}
 	var tileData:Array = layer.data;
 	if (tileData.length > 0 ) {
 		var width = layer.width;
@@ -146,9 +154,9 @@ function DrawTileLayer(layer:TileLayer, layerIndex:Number) {
 			if (tileID > 0 ) {
 				var sp:Sprite = tileIDToSpriteMap[tileID] as Sprite;
 				if (sp) {
-					var vec:Vector3 = Vector3(transform.position.x + i%width * 0.320000d, 
-										      transform.position.y + Mathf.Floor(i/width) * -0.320000d, 
-										      transform.position.z + 50 - layerIndex);
+					var vec:Vector3 = Vector3(transform.position.x + i%width * (2*TileDrawOffset), 
+										      transform.position.y + Mathf.Floor(i/width) * (-2*TileDrawOffset), 
+										      transform.position.z + (PixelsPerUnit/2) - layerIndex);
 					//Debug.Log("Drawing " + sp.name + " at " + vec.x + "," + vec.y );
 					//var obj = Instantiate (sp, vec, Quaternion.identity);
 					var t = Instantiate( spriteTemplate, vec, Quaternion.identity);
@@ -170,19 +178,19 @@ function DrawTileLayers() {
 }
 
 function DrawEllipse(obj:TileObject) {
-	var elip:Transform = Instantiate(physicsTemplate, Vector3(0.16 + transform.position.x + obj.x / 100, -0.16 + transform.position.y - obj.y / 100, 5), Quaternion.identity);
+	var elip:Transform = Instantiate(physicsTemplate, Vector3(0.16 + transform.position.x + obj.x / PixelsPerUnit, -0.16 + transform.position.y - obj.y / TileDrawOffset, 5), Quaternion.identity);
 	var colider:CircleCollider2D = elip.gameObject.AddComponent.<CircleCollider2D>() as CircleCollider2D;
 	colider.transform.parent = transform;
 	colider.radius = (obj.width + obj.height)/400;
 }
 
 function DrawPolygon(obj:TileObject) {
-	var poly:Transform = Instantiate(physicsTemplate, Vector3(-0.16 + transform.position.x + obj.x / 100, 0.16 + transform.position.y - obj.y / 100, 5), Quaternion.identity);
+	var poly:Transform = Instantiate(physicsTemplate, Vector3(-0.16 + transform.position.x + obj.x / TileDrawOffset, 0.16 + transform.position.y - obj.y / PixelsPerUnit, 5), Quaternion.identity);
 	var colider:PolygonCollider2D = poly.gameObject.AddComponent.<PolygonCollider2D>() as PolygonCollider2D;
 	colider.transform.parent = transform;
 	var points:Vector2[] = new Vector2[obj.polygon.length];
 	for( var i = 0; i < obj.polygon.length; ++i) {
-		points[i] = new Vector2((obj.polygon[i] as TilePoint).x / 100, (obj.polygon[i] as TilePoint).y / -100);
+		points[i] = new Vector2((obj.polygon[i] as TilePoint).x / PixelsPerUnit, (obj.polygon[i] as TilePoint).y / (-1  * PixelsPerUnit));
 	}
 	colider.SetPath(0, points);
 	
@@ -195,8 +203,8 @@ function DrawPolyLine(obj:TileObject) {
 function DrawMapBorders() {
 	var pushPoint = function(array:Array, x:Number, y:Number) {
 		var tp:TilePoint = new TilePoint();
-		tp.x = x * 100;
-		tp.y = y * -100;
+		tp.x = x * PixelsPerUnit;
+		tp.y = y * -1 * PixelsPerUnit;
 		array.Push(tp);
 	};
 	
@@ -230,11 +238,11 @@ function DrawMapBorders() {
 
 }
 function DrawRectangle(obj:TileObject) {
-	var poly:Transform = Instantiate(physicsTemplate, Vector3(-0.16 + transform.position.x + obj.x / 100 + obj.width/200, 0.16 + transform.position.y - obj.y / 100 - obj.height/200, 5), Quaternion.identity);
+	var poly:Transform = Instantiate(physicsTemplate, Vector3(-0.16 + transform.position.x + obj.x / PixelsPerUnit + obj.width/(2*PixelsPerUnit), 0.16 + transform.position.y - obj.y / PixelsPerUnit - obj.height/(2*PixelsPerUnit), 5), Quaternion.identity);
 	var colider:BoxCollider2D = poly.gameObject.AddComponent.<BoxCollider2D>() as BoxCollider2D;
 	colider.transform.parent = transform;
-	colider.size.x = obj.width / 100;
-	colider.size.y = obj.height / 100;
+	colider.size.x = obj.width / PixelsPerUnit;
+	colider.size.y = obj.height / PixelsPerUnit;
 }
 
 function DrawPhysics(objects:Array) {
@@ -276,7 +284,7 @@ function FindLoadPoint(objects:Array) {
 	for( var i = 0; i < objects.length; ++i) {
 		var obj:TileObject = objects[i] as TileObject;
 		if (obj.type == "startPoint" && obj.getProperty("playerLoadPoint")) {
-			Instantiate(typePlayer, Vector3 (obj.x / 100, obj.y / -100, 5), Quaternion.identity);
+			Instantiate(typePlayer, Vector3 (obj.x / PixelsPerUnit, obj.y / (-1*PixelsPerUnit), 5), Quaternion.identity);
 			return true;
 		}
 	}
@@ -309,7 +317,7 @@ function MobFactory(mobType:String, mobX:float, mobY:float) {
 			break;
 	}
 	if (type) {
-		Instantiate(type, Vector3 (mobX / 100, mobY / -100, 5), Quaternion.identity);
+		Instantiate(type, Vector3 (mobX / PixelsPerUnit, mobY / (-1 * PixelsPerUnit), 5), Quaternion.identity);
 	}
 }
 function SpawnMonsters(objects:Array) {
