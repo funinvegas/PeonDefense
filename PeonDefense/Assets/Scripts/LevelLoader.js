@@ -5,10 +5,10 @@ import SimpleJSON;
 //var mapFile:String = "";
 var assetPath:String = "";
 var mapAsset:TextAsset = null;
-var test:String[];
+//var test:List.<String> = null;
 
-var spriteTemplate:Transform = null;
-var physicsTemplate:Transform = null;
+private var spriteTemplate:GameObject = null;
+//var physicsTemplate:Transform = null;
 private var tileIDToSpriteMap: Array = new Array();
 private var tileLayers:Array = new Array();
 static var MaxLeftPixel:Number = 0;
@@ -20,6 +20,15 @@ static var PixelsPerUnit:Number = 1;
 static var TileDrawOffset:Number = 16 / PixelsPerUnit;
 
 function Start () {
+}
+
+function theStart () {
+	if (!spriteTemplate) {
+		spriteTemplate = new GameObject();
+		spriteTemplate.AddComponent.<SpriteRenderer>();
+		spriteTemplate.transform.parent = null;
+		spriteTemplate.name = "Sprite Template";
+	}
 	if (mapAsset) {
 		//var fileName = Application.dataPath + mapFile;
 		//Debug.Log("Reading Map File: " + fileName);
@@ -30,24 +39,25 @@ function Start () {
 		//var pathToMap = mapFile.Substring(0, Mathf.Max(mapFile.LastIndexOf('\\'), mapFile.LastIndexOf('/')) + 1);
 		LoadTileSets(fileData['tilesets'].AsArray, assetPath);
 		LoadTileLayers(fileData['layers'].AsArray);
-	} else {
-		Debug.Log("Missing Map File Name");
-	}
-	DrawTileLayers();
-	
-	MaxLeftPixel = transform.position.x - TileDrawOffset;
-	MaxRightPixel = transform.position.x + fileData['width'].AsInt * fileData['tilewidth'].AsInt / PixelsPerUnit - TileDrawOffset;
-	MaxTopPixel = transform.position.y + TileDrawOffset;
-  	MaxBottomPixel = transform.position.y - ((fileData['height'].AsInt * fileData['tileheight'].AsInt / PixelsPerUnit) - TileDrawOffset);
+	    LoadPaths();
 
-	LoadPhysics();
-	
-	LoadPlayerCharector();
+		DrawTileLayers();
+		
+		MaxLeftPixel = transform.position.x - TileDrawOffset;
+		MaxRightPixel = transform.position.x + fileData['width'].AsInt * fileData['tilewidth'].AsInt / PixelsPerUnit - TileDrawOffset;
+		MaxTopPixel = transform.position.y + TileDrawOffset;
+	  	MaxBottomPixel = transform.position.y - ((fileData['height'].AsInt * fileData['tileheight'].AsInt / PixelsPerUnit) - TileDrawOffset);
 
- 	LoadMonsters();
- 
- 	Debug.Log(" Screen width = " + Screen.width);
- 	Debug.Log(" Screen height = " + Screen.height);
+
+	
+//	LoadPhysics();
+	
+//	LoadPlayerCharector();
+
+//	LoadMonsters();
+	 
+	 	Debug.Log(" Screen width = " + Screen.width);
+	 	Debug.Log(" Screen height = " + Screen.height);
 	 // set the camera to the correct orthographic size (so scene pixels are 1:1)
 	
 	// if the resoltuion is 1900x1024.... a 32x 32 is taller than wide.
@@ -56,9 +66,14 @@ function Start () {
 //	Camera.main.orthographicSize = s_baseOrthographicSize;
 //	Camera.main.aspect = 2;
 //	Camera.main.orthographicSize = 3;
+	} else {
+		Debug.Log("Missing Map File Name");
+	}
+
 }
-var lastOrthHeight = 0d;
+//var lastOrthHeight = 0d;
 function Update () {
+	DrawPathLayers();
 	/*var pixelHeight = Camera.main.pixelHeight;
 	var tilesHeight = Mathf.Floor(pixelHeight / 32d);
 	var goalTileHeight = 20;
@@ -75,17 +90,36 @@ function Update () {
 		Camera.main.orthographicSize = s_baseOrthographicSize;
 	}*/
 }
+var pathZLevels:Dictionary.<String,float> = new Dictionary.<String,float> ();
+function LoadPaths () {
+	Debug.Log("LoadPaths start " + tileLayers.length);
+	var c:String = "Path";
+	for( var i = 0; i < tileLayers.length; ++i) {
+		var layer = tileLayers[i] as TileLayer;
+		var sub:Number = layer.layerName.IndexOf("Paths");
+		var pathType = "";
+		if (sub < 0) {
+			continue;
+		} else {
+			pathType = layer.layerName.Substring(0, sub);
+			pathZLevels[pathType] = transform.position.z + (10 * PixelsPerUnit) - (i * 10/PixelsPerUnit);
+		}
+		Debug.Log("LoadPaths: pathType = " + pathType );
+		(tileLayers[i] as TileLayer).InitPathing();
+	}
+	Debug.Log("LoadPaths end " + tileLayers.length);
+}
 
-function WriteFile(filepathIncludingFileName : String, content: String)
+/*function WriteFile(filepathIncludingFileName : String, content: String)
 {
     var sw : StreamWriter = new StreamWriter(filepathIncludingFileName);
     sw.WriteLine("Line to write");
     sw.WriteLine("Another Line");
     sw.Flush();
     sw.Close();
-}
+}*/
 
-function ReadFile(filepathIncludingFileName : String) {
+/*function ReadFile(filepathIncludingFileName : String) {
     var sr = new File.OpenText(filepathIncludingFileName);
     var returnVal = ""; 
     var input = "";
@@ -97,7 +131,7 @@ function ReadFile(filepathIncludingFileName : String) {
     }
     sr.Close();
     return returnVal;
-}
+}*/
 
 function FilePathToResourcePath(filePath:String) {
 	var resourceExtensionStart = filePath.LastIndexOf('.');
@@ -137,32 +171,66 @@ function LoadTileLayers(jsonLayers: JSONArray) {
 		
 	}
 }
-function Nearest100th(num:Number) {
-	return Mathf.Round(num * 100) / 100;
+
+function DrawPathingLayer(layer:TileLayer, layerIndex:Number) {
+	var sub:Number = layer.layerName.IndexOf("Paths");
+	if (sub < 0) {
+		return;
+	}
+	var pathingData:List.<PathBox> = layer.pathing.pathTiles;
+	if (pathingData.Count > 0 ) {
+		var width = layer.width;
+		//Debug.Log("Drawing " + tileData.length + " tiles");
+		for( var i:int = 0; i < pathingData.Count; ++i) {
+			var path:PathBox = pathingData[i];
+			if (path.walkable) {
+				var startVec = new Vector3(transform.position.x + path.x * (2*TileDrawOffset), 
+										   transform.position.y + path.y * (-2*TileDrawOffset), 
+										   transform.position.z + (10 * PixelsPerUnit) - (layerIndex * 10/PixelsPerUnit));
+				for (var iN:int = 0; iN < path.neighbors.Count; ++iN) {
+					var neighbor:PathBox = path.neighbors[iN];
+					if (neighbor.walkable) {
+						var stopVec = new Vector3(transform.position.x + neighbor.x * (2*TileDrawOffset), 
+											   transform.position.y + neighbor.y * (-2*TileDrawOffset), 
+											   transform.position.z + (10 * PixelsPerUnit) - (layerIndex * 10/PixelsPerUnit));
+						Debug.DrawLine(startVec, stopVec);
+					}
+
+				}
+			}
+		}
+	}
 }
 function DrawTileLayer(layer:TileLayer, layerIndex:Number) {
 	var sub:Number = layer.layerName.IndexOf("Paths");
 	if (sub >= 0) {
+		DrawPathingLayer(layer, layerIndex);
 		return;
 	}
-	var tileData:Array = layer.data;
-	if (tileData.length > 0 ) {
+	var tileData:List.<int> = layer.data;
+	if (tileData.Count > 0 ) {
 		var width = layer.width;
 		//Debug.Log("Drawing " + tileData.length + " tiles");
-		for( var i = 0d; i < tileData.length; ++i) {
+		for( var i = 0d; i < tileData.Count; ++i) {
 			var tileID:int = System.Convert.ToInt32(tileData[i]);
 			if (tileID > 0 ) {
 				var sp:Sprite = tileIDToSpriteMap[tileID] as Sprite;
 				if (sp) {
 					var vec:Vector3 = Vector3(transform.position.x + i%width * (2*TileDrawOffset), 
 										      transform.position.y + Mathf.Floor(i/width) * (-2*TileDrawOffset), 
-										      transform.position.z + (PixelsPerUnit/2) - layerIndex);
+										      transform.position.z + (10 * PixelsPerUnit) - (layerIndex * 10/PixelsPerUnit));
 					//Debug.Log("Drawing " + sp.name + " at " + vec.x + "," + vec.y );
 					//var obj = Instantiate (sp, vec, Quaternion.identity);
-					var t = Instantiate( spriteTemplate, vec, Quaternion.identity);
+					//var t = Instantiate( spriteTemplate, vec, Quaternion.identity);
+					//var go = new GameObject();
+				    var t = Instantiate( spriteTemplate, vec, Quaternion.identity);
+				    t.name = "LayerName X Y";
+//				    t.AddComponent.<SpriteRenderer>();
 				    var spriteRenderer:SpriteRenderer = t.GetComponent(SpriteRenderer);
 				    spriteRenderer.sprite = sp;
 				    t.transform.parent = transform;
+				    t.transform.localPosition = vec;
+				    t.transform.localScale = new Vector3(1,1,1);
 				    //Debug.Log("Bounds = x:" + sp.bounds.size.x + " y:" + sp.bounds.size.y);
 				} else {
 					Debug.Log("Missing Sprite " + tileID);
@@ -176,7 +244,12 @@ function DrawTileLayers() {
 		DrawTileLayer(tileLayers[i] as TileLayer, i);
 	}
 }
-
+function DrawPathLayers() {
+	for( var i = 0; i < tileLayers.length; ++i) {
+		DrawPathingLayer(tileLayers[i] as TileLayer, i);
+	}
+}
+/*
 function DrawEllipse(obj:TileObject) {
 	var elip:Transform = Instantiate(physicsTemplate, Vector3(0.16 + transform.position.x + obj.x / PixelsPerUnit, -0.16 + transform.position.y - obj.y / TileDrawOffset, 5), Quaternion.identity);
 	var colider:CircleCollider2D = elip.gameObject.AddComponent.<CircleCollider2D>() as CircleCollider2D;
@@ -243,8 +316,8 @@ function DrawRectangle(obj:TileObject) {
 	colider.transform.parent = transform;
 	colider.size.x = obj.width / PixelsPerUnit;
 	colider.size.y = obj.height / PixelsPerUnit;
-}
-
+}*/
+/*
 function DrawPhysics(objects:Array) {
 	for( var i = 0; i < objects.length; ++i) {
 		var obj = objects[i] as TileObject;
@@ -260,7 +333,8 @@ function DrawPhysics(objects:Array) {
 			DrawRectangle(obj);
 		}
 	}
-}
+}*/
+/*
 function LoadPhysics() {
 	Debug.Log("LoadPhysics start " + tileLayers.length);
 	DrawMapBorders();
@@ -278,8 +352,8 @@ function LoadPhysics() {
 		}
 	}
 	Debug.Log("LoadPhysics end " + tileLayers.length);
-}
-var typePlayer:Transform;
+}*/
+/*var typePlayer:Transform;
 function FindLoadPoint(objects:Array) {
 	for( var i = 0; i < objects.length; ++i) {
 		var obj:TileObject = objects[i] as TileObject;
@@ -306,10 +380,10 @@ function LoadPlayerCharector() {
 			}
 		}
 	}
-}
-var typeWolf:Transform;
+}*/
+//var typeWolf:Transform;
 
-function MobFactory(mobType:String, mobX:float, mobY:float) {
+/*function MobFactory(mobType:String, mobX:float, mobY:float) {
 	var type:Transform = typeWolf; // default type
 	switch (mobType) {
 		case "wolf":
@@ -342,4 +416,4 @@ function LoadMonsters() {
 			}
 		}
 	}
-}
+}*/

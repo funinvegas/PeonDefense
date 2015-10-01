@@ -1,5 +1,7 @@
 ﻿#pragma strict
 import SimpleJSON;
+import System.Collections.Generic;
+
 class TileProperty { 
 	var pName:String = "";
 	var pValue:String = "";
@@ -72,9 +74,100 @@ class TileObject {
 	}
 }
 
+class PathBox {
+	var neighbors:List.<PathBox> = new List.<PathBox>();
+	var savedBestPath:int = -1;
+	var testBestPath:int = -1;
+	var x:int = -1;
+	var y:int = -1;
+	var walkable:boolean = false;
+	function addNeighbor(neighbor:int, others:List.<PathBox>) {
+		if (neighbor >= 0 && neighbor < others.Count) {
+			this.neighbors.Add(others[neighbor]);
+		}
+	}
+}
+
+class Pathing {
+	var startType:int = 0;
+	var endType:int = 0;
+	var pathType:int = 0;
+	var startLocations:List.<int> = new List.<int>();
+	var endLocations:List.<int> = new List.<int>();
+	var tilesAcross:int = 0;
+	var tilesTall:int = 0;
+	var pathTiles:List.<PathBox> = new List.<PathBox>();
+	function getAt(x:int, y:int):int {
+	}
+	function initFromTileLayer(tLayer:TileLayer) {
+		this.startType = tLayer.data[0];
+		this.endType = tLayer.data[1];
+		this.pathType = tLayer.data[2];
+		this.tilesAcross = tLayer.width;
+		this.tilesTall = tLayer.height;
+		var tiles:List.<int> = new List.<int>();
+		tiles.Add(0); // startType
+		tiles.Add(0); // endType
+		tiles.Add(0); // pathType
+		for ( var i = 3; i < tLayer.data.Count; ++i) {
+			if ( tLayer.data[i] == this.startType ) {
+				this.startLocations.Add(i);
+				tiles.Add(1);
+			} else if (tLayer.data[i] == this.endType) {
+				this.endLocations.Add(i);
+				tiles.Add(1);
+			} else if (tLayer.data[i] == this.pathType) {
+				tiles.Add(1);
+			} else {
+				if (tLayer.data[i] != 0) {
+					Debug.Log("Unexpected type in path layer: " + tLayer.data[i] + " at " + i % this.tilesAcross + "," + Mathf.Floor(i / this.tilesAcross));
+				}
+				tiles.Add(0);
+			}
+		}
+		Debug.Log("Created TilePathing, " + this.startType + ", " + this.endType + ", " + this.pathType + ", s" + this.startLocations.Count);
+		var arrayIndex = -1;
+		var pathBox:PathBox;
+		for (var iX = 0; iX < this.tilesAcross; ++iX) {
+			for (var iY = 0; iY < this.tilesTall; ++iY) {
+				arrayIndex = iY * this.tilesAcross + iX;
+				pathBox = new PathBox();
+				pathBox.x = iX;
+				pathBox.y = iY;
+				pathBox.walkable = tiles[arrayIndex] != 0;
+				pathTiles.Add(pathBox);
+			}
+		}
+		for (iX = 0; iX < this.tilesAcross; ++iX) {
+			for (iY = 0; iY < this.tilesTall; ++iY) {
+				arrayIndex = iY * this.tilesAcross + iX;
+				pathBox = pathTiles[arrayIndex];
+				// Add up,down,left,right first so they are checked before diag
+				var above:int = (iY-1) * this.tilesAcross + (iX-0);
+				var below:int = (iY+1) * this.tilesAcross + (iX-0);
+				var left:int = (iY-0) * this.tilesAcross + (iX-1);
+				var right:int = (iY-0) * this.tilesAcross + (iX+1);
+				// Add diag after so they are checked last.
+				var aboveLeft:int = (iY-1) * this.tilesAcross + (iX-1);
+				var belowLeft:int = (iY+1) * this.tilesAcross + (iX-1);
+				var aboveRight:int = (iY-1) * this.tilesAcross + (iX+1);
+				var belowRight:int = (iY+1) * this.tilesAcross + (iX+1);
+				pathBox.addNeighbor(above, pathTiles);
+				pathBox.addNeighbor(below, pathTiles);
+				pathBox.addNeighbor(left, pathTiles);
+				pathBox.addNeighbor(right, pathTiles);
+				pathBox.addNeighbor(aboveLeft, pathTiles);
+				pathBox.addNeighbor(aboveRight, pathTiles);
+				pathBox.addNeighbor(belowLeft, pathTiles);
+				pathBox.addNeighbor(belowRight, pathTiles);
+			}
+		}
+	}
+}
+
 class TileLayer {
 
-	var data:Array = new Array();
+	var data:List.<int> = new List.<int>();
 	var height:Number = 0;
 	var layerName:String = "";
 	var opacity:Number = 1;
@@ -84,12 +177,13 @@ class TileLayer {
 	var x:Number = 0;
 	var y:Number = 0;
 	var objects:Array = new Array();
+	var pathing:Pathing = new Pathing();
 
 	function InitFromJSON (json:JSONNode) {
 		var dataArray:JSONArray = json['data'].AsArray;
 		var i = 0;
 		for(i = 0; i < dataArray.Count; ++i) {
-			data.Push(dataArray[i].AsInt);
+			data.Add(dataArray[i].AsInt);
 		}
 		height = json['height'].AsInt || 0;
 		layerName = json['name'].Value || "";
@@ -106,8 +200,11 @@ class TileLayer {
 				tileObject.InitFromJSON(objectArray[i]);
 				objects.Push(tileObject);
 			}
-		}
-		
+		}	
+	}
+	
+	function InitPathing () {
+		this.pathing.initFromTileLayer(this);
 	}
 
 	function Start () {

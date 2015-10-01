@@ -18,14 +18,19 @@ function hundredRound(num:Number) {
 }
 var UnitsPerPixel:float = 1f;//1f / 100f;
 var PixelsPerUnit:float = 1f;//100f / 1f;
+var _eventSystem:EventSystems.EventSystem = null;
+
 function Update()
 {
-	if (Input.GetButton("Fire1"))// || Input.GetMouseButton(0))
+	if (!_eventSystem) {
+		_eventSystem = GameObject.Find("EventSystem").GetComponent.<EventSystems.EventSystem>();
+	}
+	/*if (Input.GetButton("Fire1"))// || Input.GetMouseButton(0))
 	{
 		Debug.Log( "Fire Button Down");
 		var hit : RaycastHit;
 		var ray : Ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-	}
+	}*/
 }
 var lastMousePosition:Vector2 = new Vector2(-1,-1);
 
@@ -37,6 +42,9 @@ function FixedUpdate()
 	var v:float = 0;
 	var h:float = 0;
 	if (Input.GetMouseButton(0)) {
+		if (_eventSystem && _eventSystem.IsPointerOverGameObject()) {
+		return;
+		}
 //		h = Input.GetAxis ("Mouse Y");
 //		v = Input.GetAxis ("Mouse X");
 		if (lastMousePosition.x > 0) {
@@ -44,7 +52,7 @@ function FixedUpdate()
 			v = lastMousePosition.y - Input.mousePosition.y;
 		}
 		
-		Debug.Log("h = " + h + ", v = " + v);
+		//Debug.Log("h = " + h + ", v = " + v);
 	} else {
 		lastMousePosition = new Vector2(-1,-1);
 	}
