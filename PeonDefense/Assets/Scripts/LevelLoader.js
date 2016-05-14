@@ -7,7 +7,7 @@ var assetPath:String = "";
 var mapAsset:TextAsset = null;
 //var test:List.<String> = null;
 
-private var spriteTemplate:GameObject = null;
+private static var spriteTemplate:GameObject = null;
 //var physicsTemplate:Transform = null;
 private var tileIDToSpriteMap: Array = new Array();
 private var tileLayers:Array = new Array();
@@ -177,18 +177,18 @@ function DrawPathingLayer(layer:TileLayer, layerIndex:Number) {
 	if (sub < 0) {
 		return;
 	}
-	var pathingData:List.<PathBox> = layer.pathing.pathTiles;
+	var i:int = 0;
+	/*var pathingData:List.<PathBox> = layer.pathing.pathTiles;
 	if (pathingData.Count > 0 ) {
 		var width = layer.width;
 		//Debug.Log("Drawing " + tileData.length + " tiles");
-		for( var i:int = 0; i < pathingData.Count; ++i) {
+		for( i = 0; i < pathingData.Count; ++i) {
 			var path:PathBox = pathingData[i];
 			if (path.walkable) {
 				var startVec = new Vector3(transform.position.x + path.x * (2*TileDrawOffset), 
 										   transform.position.y + path.y * (-2*TileDrawOffset), 
 										   transform.position.z + (10 * PixelsPerUnit) - (layerIndex * 10/PixelsPerUnit));
-				for (var iN:int = 0; iN < path.neighbors.Count; ++iN) {
-					var neighbor:PathBox = path.neighbors[iN];
+				for (var neighbor:PathBox in path.neighbors.Values) {
 					if (neighbor.walkable) {
 						var stopVec = new Vector3(transform.position.x + neighbor.x * (2*TileDrawOffset), 
 											   transform.position.y + neighbor.y * (-2*TileDrawOffset), 
@@ -199,7 +199,29 @@ function DrawPathingLayer(layer:TileLayer, layerIndex:Number) {
 				}
 			}
 		}
+		
+	}*/
+	var pathingData:List.<PathBox> = layer.pathing.pathTiles;
+	if (pathingData.Count > 0 ) {
+		var width = layer.width;
+		//Debug.Log("Drawing " + tileData.length + " tiles");
+		for( i = 0; i < pathingData.Count; ++i) {
+			var path:PathBox = pathingData[i];
+			if (path.walkable) {
+				var neighbor:PathBox = path.getNeighbor(path.savedBestPath);
+				if (neighbor) {
+					var startVec = new Vector3(transform.position.x + path.x * (2*TileDrawOffset), 
+										   transform.position.y + path.y * (-2*TileDrawOffset), 
+										   transform.position.z + (10 * PixelsPerUnit) - (layerIndex * 10/PixelsPerUnit));
+					var stopVec = new Vector3(transform.position.x + neighbor.x * (2*TileDrawOffset), 
+										   transform.position.y + neighbor.y * (-2*TileDrawOffset), 
+										   transform.position.z + (10 * PixelsPerUnit) - (layerIndex * 10/PixelsPerUnit));
+					Debug.DrawLine(startVec, stopVec, Color.red);
+				}
+			}
+		}
 	}
+
 }
 function DrawTileLayer(layer:TileLayer, layerIndex:Number) {
 	var sub:Number = layer.layerName.IndexOf("Paths");
@@ -224,8 +246,8 @@ function DrawTileLayer(layer:TileLayer, layerIndex:Number) {
 					//var t = Instantiate( spriteTemplate, vec, Quaternion.identity);
 					//var go = new GameObject();
 				    var t = Instantiate( spriteTemplate, vec, Quaternion.identity);
-				    t.name = "LayerName X Y";
-//				    t.AddComponent.<SpriteRenderer>();
+				    t.name = "LayerName " + i%width + " " + Mathf.Floor(i/width);
+					//t.AddComponent.<SpriteRenderer>();
 				    var spriteRenderer:SpriteRenderer = t.GetComponent(SpriteRenderer);
 				    spriteRenderer.sprite = sp;
 				    t.transform.parent = transform;
@@ -249,6 +271,156 @@ function DrawPathLayers() {
 		DrawPathingLayer(tileLayers[i] as TileLayer, i);
 	}
 }
+
+
+function solvePathing() {
+	SolvePathingLayers();
+}
+function SolvePathingLayers() {
+	for( var i = 0; i < tileLayers.length; ++i) {
+		SolvePathingLayer(tileLayers[i] as TileLayer, i);
+	}
+}
+function invertDirection(direction:String):String {
+	var returnVal = "UNRECOGNIZED DIRECTION: " + direction;
+	switch (direction) {
+		case "above": 
+			returnVal = "below";
+			break;
+		case "below":
+			returnVal = "above";
+			break;
+		case "left": 
+			returnVal = "right";
+			break;
+		case "right": 
+			returnVal = "left";
+			break;
+		case "aboveLeft": 
+			returnVal = "belowRight";
+			break;
+		case "belowRight": 
+			returnVal = "aboveLeft";
+			break;
+		case "aboveRight": 
+			returnVal = "belowLeft";
+			break;
+		case "belowLeft": 
+			returnVal = "aboveRight";
+			break;
+	}
+	return returnVal;
+}
+function PathTestNautical( tile:PathBox, direction:String, nextCycleList:List.<PathBox> ) {
+	var tileInDirection:PathBox = tile.getNeighbor(direction);
+	if (isPathableTile(tileInDirection)) {
+		tileInDirection.testBestPath = invertDirection(direction);
+		nextCycleList.Add(tileInDirection);
+	}
+}
+function isPathableTile(tile:PathBox) {
+	if (tile && tile.walkable && tile.testBestPath == "") {
+		return true;
+	}
+	return false;
+}
+function isWalkableTile(tile:PathBox) {
+	if (tile && tile.walkable) {
+		return true;
+	}
+	return false;
+}
+function PathTestDiagnal( tile:PathBox, direction:String, ifClear1:String, ifClear2:String, nextCycleList:List.<PathBox> ) {
+	if (isWalkableTile( tile.getNeighbor(ifClear1)) && isWalkableTile( tile.getNeighbor(ifClear2))) {
+		PathTestNautical(tile, direction, nextCycleList);
+	}
+}
+function SolvePathingLayer(layer:TileLayer, layerIndex:Number):boolean {
+	var sub:Number = layer.layerName.IndexOf("Paths");
+	if (sub < 0) {
+		return;
+	}
+	// Setup initial test state
+	var i:int = 0;
+	var activePathingBoxes:List.<PathBox> = new List.<PathBox>();
+	for( i in layer.pathing.endLocations) {
+		activePathingBoxes.Add(layer.pathing.pathTiles[i]);
+		Debug.Log("End Location " + i + " is " + (layer.pathing.pathTiles[i].walkable ? "Walkable":"Not Walkable"));
+	}
+	var tile:PathBox = null;
+	// TODO the testBestPath should always be left in a clear state, so maybe this isn't needed?
+	for (tile in layer.pathing.pathTiles) {
+		tile.testBestPath = "";
+	} 
+	
+	//for each current path point, 
+	// check neighbors
+	// if neighbor has not been visited, is clear, (and nautical are clear if diagnal) 
+	// 	mark neigbbor visit path twards from box
+	//  push neighbor onto nextRound list
+	// 
+	var nextCyclePathingBoxes:List.<PathBox> = new List.<PathBox>();
+	while(activePathingBoxes.Count > 0) {
+	
+		for( tile in activePathingBoxes) {
+			PathTestNautical( tile, "left", nextCyclePathingBoxes);
+			PathTestNautical( tile, "right", nextCyclePathingBoxes);
+			PathTestNautical( tile, "above", nextCyclePathingBoxes);
+			PathTestNautical( tile, "below", nextCyclePathingBoxes);
+			PathTestDiagnal( tile, "aboveLeft", "above", "left", nextCyclePathingBoxes);
+			PathTestDiagnal( tile, "aboveRight", "above", "right", nextCyclePathingBoxes);
+			PathTestDiagnal( tile, "belowLeft", "below", "left", nextCyclePathingBoxes);
+			PathTestDiagnal( tile, "belowRight", "below", "right", nextCyclePathingBoxes);
+		}
+		
+		activePathingBoxes = nextCyclePathingBoxes;
+		nextCyclePathingBoxes = new List.<PathBox>();
+	}
+	var validPathing:boolean = true;
+	for (tile in layer.pathing.pathTiles) {
+		if (tile.testBestPath == "" && tile.walkable) {
+			validPathing = false;
+			Debug.Log("**************** ABORTING PATHING ATTEMPT");
+			break;
+		}
+	} 
+	// if the new pathing is good, save it.
+	if (validPathing) {
+		for (tile in layer.pathing.pathTiles) {
+			tile.savedBestPath = tile.testBestPath;
+		} 
+	}
+	// delete temp best path in prep for next wave.
+	for (tile in layer.pathing.pathTiles) {
+		tile.testBestPath = "";
+	} 
+	return validPathing;
+	/*
+	var pathingData:List.<PathBox> = layer.pathing.pathTiles;
+	if (pathingData.Count > 0 ) {
+		var width = layer.width;
+		//Debug.Log("Drawing " + tileData.length + " tiles");
+		for( i = 0; i < pathingData.Count; ++i) {
+			var path:PathBox = pathingData[i];
+			if (path.walkable) {
+				var startVec = new Vector3(transform.position.x + path.x * (2*TileDrawOffset), 
+										   transform.position.y + path.y * (-2*TileDrawOffset), 
+										   transform.position.z + (10 * PixelsPerUnit) - (layerIndex * 10/PixelsPerUnit));
+				var neighbor:PathBox = path.getNeighbor(path.testBestPath);
+				if (neighbor) {
+					var stopVec = new Vector3(transform.position.x + neighbor.x * (2*TileDrawOffset), 
+										   transform.position.y + neighbor.y * (-2*TileDrawOffset), 
+										   transform.position.z + (10 * PixelsPerUnit) - (layerIndex * 10/PixelsPerUnit));
+					Debug.DrawLine(startVec, stopVec);
+				}
+			}
+		}
+	}
+	*/
+}
+
+
+
 /*
 function DrawEllipse(obj:TileObject) {
 	var elip:Transform = Instantiate(physicsTemplate, Vector3(0.16 + transform.position.x + obj.x / PixelsPerUnit, -0.16 + transform.position.y - obj.y / TileDrawOffset, 5), Quaternion.identity);

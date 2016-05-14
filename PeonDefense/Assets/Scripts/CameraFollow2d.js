@@ -12,6 +12,9 @@ function Start()
 {
 	thisTransform = transform;
 	Camera.main.orthographicSize = (32 / pixelsPerUnit) * 10;
+	if (!_eventSystem) {
+		_eventSystem = GameObject.Find("EventSystem").GetComponent.<EventSystems.EventSystem>();
+	}
 }
 function hundredRound(num:Number) {
 	return Mathf.Round(num * 100) / 100;
@@ -22,9 +25,6 @@ var _eventSystem:EventSystems.EventSystem = null;
 
 function Update()
 {
-	if (!_eventSystem) {
-		_eventSystem = GameObject.Find("EventSystem").GetComponent.<EventSystems.EventSystem>();
-	}
 	/*if (Input.GetButton("Fire1"))// || Input.GetMouseButton(0))
 	{
 		Debug.Log( "Fire Button Down");
@@ -38,39 +38,22 @@ function FixedUpdate()
 {
 	Camera.main.orthographicSize = Mathf.Round(Screen.height / 2f * UnitsPerPixel);
 	
-	//Debug.Log( "B0: " + Input.GetButton("Fire0") + ", " + Input.GetButton("Fire1") + ", Pos:" + Input.mousePosition);
 	var v:float = 0;
 	var h:float = 0;
-	if (Input.GetMouseButton(0)) {
+	var mbd:boolean = Input.GetMouseButton(0);
+	if (mbd) {
 		if (_eventSystem && _eventSystem.IsPointerOverGameObject()) {
-		return;
+			// dispite name, this returns true if pointer is over a menu control
+			return;
 		}
-//		h = Input.GetAxis ("Mouse Y");
-//		v = Input.GetAxis ("Mouse X");
 		if (lastMousePosition.x > 0) {
 			h = lastMousePosition.x - Input.mousePosition.x;
 			v = lastMousePosition.y - Input.mousePosition.y;
 		}
-		
-		//Debug.Log("h = " + h + ", v = " + v);
-	} else {
-		lastMousePosition = new Vector2(-1,-1);
-	}
-	
-/*	if (!target && MainCharector.globalPlayerObject) {
-		target = MainCharector.globalPlayerObject.transform;
-	}*/
-	//if (!target) {
-	//	return;
-	//}
-	//var delta:Vector2 = thisTransform.position - target.position;
-	//var mag:Number = delta.magnitude;
-	//if (mag > maxDistance) {
-		// Actuall pixels is these values * 400.  But multiplyer removed to save
-		// math time.
+
 		var screenPixelsTall = Camera.main.orthographicSize;
 		var screenPixelsWide = Camera.main.aspect * screenPixelsTall;
-		//var newLoc:Vector2 = new Vector2(target.transform.position.x, target.transform.position.y) + (delta.normalized * maxDistance);
+
 		var newLoc:Vector2 = new Vector2(thisTransform.position.x + h, thisTransform.position.y + v);
 		if (newLoc.x < LevelLoader.MaxLeftPixel + (screenPixelsWide)) {
 			newLoc.x = LevelLoader.MaxLeftPixel + (screenPixelsWide);
@@ -88,11 +71,13 @@ function FixedUpdate()
 		}
 		thisTransform.position.x = Mathf.Round(newLoc.x);
 		thisTransform.position.y = Mathf.Round(newLoc.y);
-		
-		
-		if (Input.GetMouseButton(0)) {
-  			lastMousePosition = new Vector2(Input.mousePosition.x, Input.mousePosition.y);
-		}
+
+		lastMousePosition = new Vector2(Input.mousePosition.x, Input.mousePosition.y);
+	} else {
+		lastMousePosition = new Vector2(-1,-1);
+	}
+
+	
 
 		//Debug.Log("Screen.width = " + screenPixelsWide);
 /*		Debug.Log("Camera.main.pixelWidth = " + Camera.main.pixelWidth/200);

@@ -1,10 +1,11 @@
 ﻿#pragma strict
 
 private var currentLevel:LevelLoader = null;
+private var SpawnMob:Transform = null;
 
 function LoadLevel(levelName:String) {
 	if (currentLevel) {
-		Destroy(currentLevel);
+		Destroy(currentLevel.gameObject);
 		currentLevel = null;
 	}
 	var levelToLoad:TextAsset = Resources.Load(levelName, TextAsset);
@@ -20,6 +21,7 @@ function LoadLevel(levelName:String) {
 		go.transform.localScale = new Vector3(1,1,1);
 		currentLevel = levelLoader;
 		levelLoader.theStart();
+		levelLoader.solvePathing();
 	} else {
 		Debug.Log("WARNING: Resource " + levelName + " Not found");
 	}
@@ -34,6 +36,14 @@ private var levelToLoad:String = null;
 function SceneStart () {
 	saveGame = new SaveGame();
 	levelToLoad = saveGame.GetValue("LastSelectedLevel.File", "Missing Level File");
+	SpawnMob = GameObject.Find("SendMob").transform;
+	SpawnMob.GetComponent.<UI.Button>().onClick.AddListener(this.SendMobClick);
+}
+function SceneStop() {
+	if (currentLevel) {
+		Destroy(currentLevel.gameObject);
+		currentLevel = null;
+	}
 }
 function Update () {
 	if (levelToLoad) {
@@ -41,4 +51,25 @@ function Update () {
 		levelToLoad = null;
 	}
 
+}
+/*
+class GameMob {
+
+
+}*/
+private var cloneCount:int = 0;
+private function createMob( type:String ):GameMob {
+	var cloneTarget:GameObject = GameObject.Find(type);
+	var clone:GameObject = Instantiate(cloneTarget);
+	clone.name = type + "_clone_" + (++cloneCount);
+	return clone.GetComponent.<GameMob>();
+}
+
+private var activeMobs:List.<GameObject> = new List.<GameObject>();
+function SendMobClick() {
+	Debug.Log("Sending Mob");
+	createMob("WolfMob");
+}
+
+function BuildTowerClick() {
 }

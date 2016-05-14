@@ -8,6 +8,8 @@ private var DG1:Transform = null;
 private var DG2:Transform = null;
 private var DG3:Transform = null;
 
+private var EXIT:Transform = null;
+
 private var saveGame:SaveGame = null;
 
 function Start () {
@@ -33,6 +35,8 @@ function initButtonStates() {
 	DG2.GetComponent.<UI.Button>().onClick.AddListener(function () { this.deleteGameClick(2); });
 	DG3.GetComponent.<UI.Button>().onClick.AddListener(function () { this.deleteGameClick(3); });
 
+	EXIT = transform.Find("Exit");
+	EXIT.GetComponent.<UI.Button>().onClick.AddListener(this.exitPeonDefense);
 }
 
 function updateButtonLabels() {
@@ -79,5 +83,8 @@ function newGameClick(num:Number) {
 	this.updateButtonLabels();
 }
 
+function exitPeonDefense() {
+	Application.Quit();
+}
 function Update () {
 }

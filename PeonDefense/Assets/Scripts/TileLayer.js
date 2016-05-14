@@ -75,16 +75,21 @@ class TileObject {
 }
 
 class PathBox {
-	var neighbors:List.<PathBox> = new List.<PathBox>();
-	var savedBestPath:int = -1;
-	var testBestPath:int = -1;
+	var neighbors:Dictionary.<String, PathBox> = new Dictionary.<String, PathBox>();
+	var savedBestPath:String = "";
+	var testBestPath:String = "";
 	var x:int = -1;
 	var y:int = -1;
 	var walkable:boolean = false;
-	function addNeighbor(neighbor:int, others:List.<PathBox>) {
+	function addNeighbor(name:String, neighbor:int, others:List.<PathBox>) {
 		if (neighbor >= 0 && neighbor < others.Count) {
-			this.neighbors.Add(others[neighbor]);
+			this.neighbors.Add(name, others[neighbor]);
 		}
+	}
+	function getNeighbor(name:String):PathBox {
+		var neighbor:PathBox = null;
+		neighbors.TryGetValue(name, neighbor);
+		return neighbor;
 	}
 }
 
@@ -113,8 +118,10 @@ class Pathing {
 			if ( tLayer.data[i] == this.startType ) {
 				this.startLocations.Add(i);
 				tiles.Add(1);
+				Debug.Log("ArrayIndex " + i + " is a start location");
 			} else if (tLayer.data[i] == this.endType) {
 				this.endLocations.Add(i);
+				Debug.Log("ArrayIndex " + i + " is an end location");
 				tiles.Add(1);
 			} else if (tLayer.data[i] == this.pathType) {
 				tiles.Add(1);
@@ -128,16 +135,37 @@ class Pathing {
 		Debug.Log("Created TilePathing, " + this.startType + ", " + this.endType + ", " + this.pathType + ", s" + this.startLocations.Count);
 		var arrayIndex = -1;
 		var pathBox:PathBox;
-		for (var iX = 0; iX < this.tilesAcross; ++iX) {
-			for (var iY = 0; iY < this.tilesTall; ++iY) {
+		var walkableTileCounter:int = 0;
+		for (var iY = 0; iY < this.tilesTall; ++iY) {
+			for (var iX = 0; iX < this.tilesAcross; ++iX) {
 				arrayIndex = iY * this.tilesAcross + iX;
 				pathBox = new PathBox();
 				pathBox.x = iX;
 				pathBox.y = iY;
 				pathBox.walkable = tiles[arrayIndex] != 0;
+				if (pathBox.walkable) {
+					//Debug.Log("Tile " + iX + "," + iY + " index:" + arrayIndex + " is walkable");
+					walkableTileCounter++;
+				}
+				/*
+				if (pathTiles.Count != arrayIndex) {
+					Debug.Log("Expected " + pathTiles.Count + " to match " + arrayIndex);
+				}*/
 				pathTiles.Add(pathBox);
 			}
 		}
+		/*
+		for (var iEnd:int = 0; iEnd < this.endLocations.Count; ++iEnd) {
+			if (!pathTiles[this.endLocations[iEnd]].walkable) {
+				Debug.Log("Why is endpoint " + this.endLocations[iEnd] + " not walkable;");
+			}
+		}
+		for (var iStart:int = 0; iStart < this.startLocations.Count; ++iStart) {
+			if (!pathTiles[this.startLocations[iStart]].walkable) {
+				Debug.Log("Why is start " + this.startLocations[iStart] + " not walkable;");
+			}
+		}*/
+		Debug.Log("Path layer has " + walkableTileCounter + " walkable tiles");
 		for (iX = 0; iX < this.tilesAcross; ++iX) {
 			for (iY = 0; iY < this.tilesTall; ++iY) {
 				arrayIndex = iY * this.tilesAcross + iX;
@@ -152,14 +180,14 @@ class Pathing {
 				var belowLeft:int = (iY+1) * this.tilesAcross + (iX-1);
 				var aboveRight:int = (iY-1) * this.tilesAcross + (iX+1);
 				var belowRight:int = (iY+1) * this.tilesAcross + (iX+1);
-				pathBox.addNeighbor(above, pathTiles);
-				pathBox.addNeighbor(below, pathTiles);
-				pathBox.addNeighbor(left, pathTiles);
-				pathBox.addNeighbor(right, pathTiles);
-				pathBox.addNeighbor(aboveLeft, pathTiles);
-				pathBox.addNeighbor(aboveRight, pathTiles);
-				pathBox.addNeighbor(belowLeft, pathTiles);
-				pathBox.addNeighbor(belowRight, pathTiles);
+				pathBox.addNeighbor("above", above, pathTiles);
+				pathBox.addNeighbor("below", below, pathTiles);
+				pathBox.addNeighbor("left", left, pathTiles);
+				pathBox.addNeighbor("right", right, pathTiles);
+				pathBox.addNeighbor("aboveLeft", aboveLeft, pathTiles);
+				pathBox.addNeighbor("aboveRight", aboveRight, pathTiles);
+				pathBox.addNeighbor("belowLeft", belowLeft, pathTiles);
+				pathBox.addNeighbor("belowRight", belowRight, pathTiles);
 			}
 		}
 	}
